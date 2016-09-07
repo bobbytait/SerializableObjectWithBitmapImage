@@ -35,8 +35,6 @@ namespace SerializeImages
             _myData = new MyData(_version, "This is a string.", 123.456,
                 new BitmapImage(new Uri(@"C:\Users\btait\Downloads\Images\1152.jpg")));
 
-            //BinarySerialization.WriteToBinaryFile<MyData>(filename, myData);
-
             using (Stream stream = File.Open(_filename, FileMode.Create))
             {
                 var binaryFormatter = new BinaryFormatter();
@@ -48,7 +46,6 @@ namespace SerializeImages
         {
             image.Source = null;
             _myData = null;
-            //myData = BinarySerialization.ReadFromBinaryFile<MyData>(filename);
 
             BitmapSource bitmapSource;
 
@@ -56,28 +53,15 @@ namespace SerializeImages
             {
                 var binaryFormatter = new BinaryFormatter();
                 _myData = (MyData)binaryFormatter.Deserialize(stream);
+                PixelFormat pixelFormat = (PixelFormat)new PixelFormatConverter().
+                    ConvertFromString(_myData.pixelFormat);
 
-                int stride = (_myData.pixelFormat.BitsPerPixel / 8) * _myData.pixelWidth;
+                int stride = (pixelFormat.BitsPerPixel / 8) * _myData.pixelWidth;
                 bitmapSource = BitmapSource.Create(
                     _myData.pixelWidth, _myData.pixelHeight,
                     _myData.dpiX, _myData.dpiY,
-                    _myData.pixelFormat, null,
+                    pixelFormat, null,
                     _myData.imageData, stride);
-                /*
-                                MemoryStream memoryStream = new MemoryStream(_myData.imageData);
-
-                                _myData.bitmapImage = new BitmapImage();
-                                _myData.bitmapImage.BeginInit();
-
-                                _myData.imageMetaData.
-
-                                //_myData.bitmapImage. .Metadata = _myData.imageMetaData;
-
-                                _myData.bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-                                _myData.bitmapImage.StreamSource = memoryStream;
-
-                                _myData.bitmapImage.EndInit();
-                */
             }
 
             image.Source = bitmapSource;
@@ -95,7 +79,7 @@ namespace SerializeImages
             public int pixelHeight;
             public double dpiX;
             public double dpiY;
-            public PixelFormat pixelFormat;
+            public string pixelFormat;
 
             [NonSerialized]
             public BitmapImage bitmapImage;
@@ -108,7 +92,7 @@ namespace SerializeImages
                 myDouble = theDouble;
                 bitmapImage = theBitmapImage;
 
-                pixelFormat = theBitmapImage.Format;
+                pixelFormat = theBitmapImage.Format.ToString();
                 pixelHeight = theBitmapImage.PixelHeight;
                 pixelWidth = theBitmapImage.PixelWidth;
                 dpiX = theBitmapImage.DpiX;
