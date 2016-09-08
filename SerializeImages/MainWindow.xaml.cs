@@ -4,101 +4,120 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using System.Runtime.Serialization.Formatters.Binary;
+using Microsoft.Win32;
 
 
 namespace SerializeImages
 {
-    public partial class MainWindow : Window
-    {
-        MyData _myData;
-        string _filename;
-        Version _version;
+	public partial class MainWindow : Window
+	{
+		Version _version;
 
-        public MainWindow()
-        {
-            InitializeComponent();
+		public MainWindow()
+		{
+			InitializeComponent();
 
-            _version = typeof(MainWindow).Assembly.GetName().Version;
+			// Get the app's version number as part of the mixed data we're serializing
+			_version = typeof(MainWindow).Assembly.GetName().Version;
+		}
 
-            _filename = System.IO.Path.Combine
-                (Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                "Serialized.dat");
-        }
+		// Create & save the data object as serialized binary data
+		private void saveButton_Click(object sender, RoutedEventArgs e)
+		{
+			// Create the serialized data object and save it
+			MyData myData = new MyData(_version, "This is a string.", 123.456,
+				new BitmapImage(new Uri(@"..\..\..\1152.jpg", UriKind.Relative)));
 
-        private void saveButton_Click(object sender, RoutedEventArgs e)
-        {
-            _myData = new MyData(_version, "This is a string.", 123.456,
-                new BitmapImage(new Uri(@"C:\Users\btait\Downloads\Images\1152.jpg")));
+			using (Stream stream = File.Open(@"..\..\..\serialized.bin", FileMode.Create))
+			{
+				var binaryFormatter = new BinaryFormatter();
+				binaryFormatter.Serialize(stream, myData);
+			}
+		}
 
-            using (Stream stream = File.Open(_filename, FileMode.Create))
-            {
-                var binaryFormatter = new BinaryFormatter();
-                binaryFormatter.Serialize(stream, _myData);
-            }
-        }
+		// Load the serialized binary data file to our object and display the image
+		private void loadButton_Click(object sender, RoutedEventArgs e)
+		{
+			image.Source = null;
+			MyData myData = null;
 
-        private void loadButton_Click(object sender, RoutedEventArgs e)
-        {
-            image.Source = null;
-            _myData = null;
+			using (Stream stream = File.Open(@"..\..\..\serialized.bin", FileMode.Open))
+			{
+				var binaryFormatter = new BinaryFormatter();
+				myData = (MyData)binaryFormatter.Deserialize(stream);
+			}
 
-            BitmapSource bitmapSource;
+			image.Source = myData.MySerializedBitmapImage.Deserialize();
+			versionData.Text = myData.MyVersion.ToString();
+			stringData.Text = myData.MyString;
+			doubleData.Text = myData.MyDouble.ToString();
+		}
 
-            using (Stream stream = File.Open(_filename, FileMode.Open))
-            {
-                var binaryFormatter = new BinaryFormatter();
-                _myData = (MyData)binaryFormatter.Deserialize(stream);
-                PixelFormat pixelFormat = (PixelFormat)new PixelFormatConverter().
-                    ConvertFromString(_myData.pixelFormat);
+		private void closeButton_Click(object sender, RoutedEventArgs e)
+		{
+			Application.Current.Shutdown();
+		}
 
-                int stride = (pixelFormat.BitsPerPixel / 8) * _myData.pixelWidth;
-                bitmapSource = BitmapSource.Create(
-                    _myData.pixelWidth, _myData.pixelHeight,
-                    _myData.dpiX, _myData.dpiY,
-                    pixelFormat, null,
-                    _myData.imageData, stride);
-            }
+		////////////////////////////////////////////////////////////////////////
+		// Class we want to serialize
 
-            image.Source = bitmapSource;
-        }
+		[Serializable]
+		public class MyData
+		{
+			public Version MyVersion;
+			public string MyString;
+			public double MyDouble;
+			public SerializedBitmapImage MySerializedBitmapImage;
 
-        [Serializable]
-        public class MyData
-        {
-            public Version version;
-            public string data;
-            public double myDouble;
+			public MyData(Version myVersion, string myString, double myDouble,
+				BitmapImage myBitmapImage)
+			{
+				MyVersion = myVersion;
+				MyString = myString;
+				MyDouble = myDouble;
+				MySerializedBitmapImage = new SerializedBitmapImage();
+				MySerializedBitmapImage.Serialize(myBitmapImage);
+			}
+		}
 
-            public byte[] imageData;
-            public int pixelWidth;
-            public int pixelHeight;
-            public double dpiX;
-            public double dpiY;
-            public string pixelFormat;
+		////////////////////////////////////////////////////////////////////////
+		// BitmapImage broken down into serializable data
 
-            [NonSerialized]
-            public BitmapImage bitmapImage;
+		[Serializable]
+		public class SerializedBitmapImage
+		{
+			public byte[] _imagePixelData;
+			public int _imagePixelWidth;
+			public int _imagePixelHeight;
+			public double _imageDpiX;
+			public double _imageDpiY;
+			private string _imagePixelFormat;
 
-            public MyData(Version appVersion, string theString, double theDouble,
-                BitmapImage theBitmapImage)
-            {
-                version = appVersion;
-                data = theString;
-                myDouble = theDouble;
-                bitmapImage = theBitmapImage;
+			public SerializedBitmapImage() { }
 
-                pixelFormat = theBitmapImage.Format.ToString();
-                pixelHeight = theBitmapImage.PixelHeight;
-                pixelWidth = theBitmapImage.PixelWidth;
-                dpiX = theBitmapImage.DpiX;
-                dpiY = theBitmapImage.DpiY;
+			public void Serialize(BitmapImage bitmapImage)
+			{
+				_imagePixelFormat = bitmapImage.Format.ToString();
+				_imagePixelWidth = bitmapImage.PixelWidth;
+				_imagePixelHeight = bitmapImage.PixelHeight;
+				_imageDpiX = bitmapImage.DpiX;
+				_imageDpiY = bitmapImage.DpiY;
 
-                int stride = (theBitmapImage.Format.BitsPerPixel / 8) * theBitmapImage.PixelWidth;
-                int bytes = stride * theBitmapImage.PixelHeight;
+				int stride = (bitmapImage.Format.BitsPerPixel / 8) * bitmapImage.PixelWidth;
+				int bytes = stride * bitmapImage.PixelHeight;
 
-                imageData = new byte[bytes];
-                bitmapImage.CopyPixels(imageData, stride, 0);
-            }
-        }
-    }
+				_imagePixelData = new byte[bytes];
+				bitmapImage.CopyPixels(_imagePixelData, stride, 0);
+			}
+
+			public BitmapSource Deserialize()
+			{
+				PixelFormat pixelFormat = (PixelFormat)new PixelFormatConverter().ConvertFromString(_imagePixelFormat);
+				int stride = (pixelFormat.BitsPerPixel / 8) * _imagePixelWidth;
+
+				return BitmapSource.Create(_imagePixelWidth, _imagePixelHeight, _imageDpiX,
+					_imageDpiY, pixelFormat, null, _imagePixelData, stride);
+			}
+		}
+	}
 }
